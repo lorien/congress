@@ -9,8 +9,8 @@ def main():
         congress = int(congress)
         for session in os.listdir('data/%s/votes' % congress):
             session = int(session)
-            rolls = {}
             for branch in ('h', 's'):
+                rolls = {}
                 members = {}
                 for roll_name in os.listdir('data/%s/votes/%s' % (congress, session)):
                     if roll_name.startswith(branch):
