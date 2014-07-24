@@ -7,7 +7,7 @@ import os
 import logging
 from datetime import datetime
 import sys
-from argparse import ArgumentParser
+#from argparse import ArgumentParser
 
 def iterate_congress_names():
     """
@@ -117,15 +117,18 @@ def find_party_walkers(members):
             }
 
 
-def main():
-    parser = ArgumentParser()
-    parser.add_argument('-v', '--verbose', action='store_true', default=False)
-    parser.add_argument('-c', '--congress', type=int)
+def run(opts):
+    # Opts
+    # --verbose: bool
+    # --congress: int
 
-    opts = parser.parse_args()
+    #parser = ArgumentParser()
+    #parser.add_argument('-v', '--verbose', action='store_true', default=False)
+    #parser.add_argument('-c', '--congress', type=int)
+    #opts = parser.parse_args()
 
-    if opts.congress:
-        congress_names = [opts.congress]
+    if opts['congress']:
+        congress_names = [int(opts['congress'])]
     else:
         congress_names = list(iterate_congress_names())
 
@@ -143,10 +146,6 @@ def main():
                     event['date'].strftime('%b/%d/%Y %H:%M'),
                     prev_event['party'], event['party'],
                 )
-                if opts.verbose:
+                if opts.get('verbose'):
                     print '     1) %s 2) %s' % (prev_event['file_path'], event['file_path'])
                 prev_event = event
-
-
-if __name__ == '__main__':
-    main()

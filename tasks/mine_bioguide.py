@@ -27,7 +27,7 @@ REX_CHANGE = re.compile(r'(changed (\S+ )?party affiliation|changed from|switche
 REX_CHANGE_DATE = re.compile(r'\b\w+ \d+, \d{4}\b', re.I)
 REX_CHANGE_YEAR = re.compile(r'\b\d{4}\b', re.I)
 
-def main():
+def run(opts):
     members = {}
     walkers = {
         'known': [],
@@ -67,7 +67,3 @@ def main():
     print '=============='
     for mid, name, date, snippet in walkers['known']:
         print u'[%s] %s (%s) -- %s' % (mid, name, date, snippet)
-
-
-if __name__ == '__main__':
-    main()
