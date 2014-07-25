@@ -7,6 +7,9 @@ import os
 import logging
 from datetime import datetime
 import sys
+
+from database import db
+import analyze_bioguide
 #from argparse import ArgumentParser
 
 def iterate_congress_names():
@@ -24,8 +27,9 @@ def iterate_sessions_of_congress(congress):
     Iterate over all session in given congress in hronological order.
     """
     res = []
-    for fname in os.listdir('data/%d/votes' % congress):
-        res.append(int(fname))
+    if os.path.exists('data/%d/votes' % congress):
+        for fname in os.listdir('data/%d/votes' % congress):
+            res.append(int(fname))
     return sorted(res)
 
 
@@ -35,10 +39,16 @@ def iterate_votes_of_session(congress, session, branch):
 
     Order is not defined.
     """
-    for vote_fname in os.listdir('data/%s/votes/%s' % (congress, session)):
-        if vote_fname.startswith(branch):
-            full_path = 'data/%s/votes/%s/%s/data.json' % (congress, session, vote_fname)
-            yield full_path, json.load(open(full_path))
+
+    # file-system storage
+    #for vote_fname in os.listdir('data/%s/votes/%s' % (congress, session)):
+        #if vote_fname.startswith(branch):
+            #full_path = 'data/%s/votes/%s/%s/data.json' % (congress, session, vote_fname)
+            #yield full_path, json.load(open(full_path))
+
+    # mongodb storage
+    for vote in db.vote.find({'session': str(session)}):
+        yield None, vote
 
 
 def parse_vote_date(date_str):
@@ -127,20 +137,30 @@ def run(opts):
     #parser.add_argument('-c', '--congress', type=int)
     #opts = parser.parse_args()
 
-    if opts['congress']:
+    if 'congress' in opts:
         congress_names = [int(opts['congress'])]
     else:
         congress_names = list(iterate_congress_names())
 
+    bioguide_walkers = dict((x[0], x) for x in analyze_bioguide.extract_walkers())
+
+    found_mids = []
     for congress in congress_names:
-        print 'CONGRESS: %s' % congress
-        print '-------------'
+        title = 'CONGRESS: %s' % congress
+        print '=' * len(title)
+        print title
+        print '=' * len(title)
         members = iterate_members_of_congress(congress)
 
         for walker in find_party_walkers(members):
             prev_event = walker['history'][0]
             for event in walker['history'][1:]:
-                print '   %s - %s - %s - %s - %s - %s' % (
+                if len(walker['id']) < 7:
+                    bioguide_id = db.legislator.find_one({'id.lis': walker['id']})['id']['bioguide']
+                else:
+                    bioguide_id = walker['id']
+                found_mids.append(bioguide_id)
+                print '    %s - %s - %s - %s - %s - %s' % (
                     walker['id'], walker['name'],
                     prev_event['date'].strftime('%b/%d/%Y %H:%M'),
                     event['date'].strftime('%b/%d/%Y %H:%M'),
@@ -148,4 +168,35 @@ def run(opts):
                 )
                 if opts.get('verbose'):
                     print '     1) %s 2) %s' % (prev_event['file_path'], event['file_path'])
+                print '    http://bioguide.congress.gov/scripts/biodisplay.pl?index=%s' % bioguide_id
+                if bioguide_id in bioguide_walkers:
+                    print '    [bioguide - OK]'
+                    for date, snippet in bioguide_walkers[bioguide_id][2]:
+                        print '    %s' % snippet
+                else:
+                    print '    [bioguide - FAIL]'
+                    print '    NA'
+                print
                 prev_event = event
+
+
+    print
+    print '========================'
+    print 'Bioguide matched records'
+    print '========================'
+    matched = [x for x in bioguide_walkers.itervalues() if x[0] in found_mids]
+    for mid, name, changes in sorted(matched, key=lambda x: x[0]):
+        for date, snippet in changes:
+            date_rep = date if date is not None else 'NA'
+            print u'[%s] %s (%s) -- %s' % (mid, name, date_rep, snippet)
+
+
+    print
+    print '=========================='
+    print 'Bioguide unmatched records'
+    print '=========================='
+    matched = [x for x in bioguide_walkers.itervalues() if x[0] not in found_mids]
+    for mid, name, changes in sorted(matched, key=lambda x: x[0]):
+        for date, snippet in changes:
+            date_rep = date if date is not None else 'NA'
+            print u'[%s] %s (%s) -- %s' % (mid, name, date_rep, snippet)

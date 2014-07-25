@@ -27,18 +27,16 @@ REX_CHANGE = re.compile(r'(changed (\S+ )?party affiliation|changed from|switche
 REX_CHANGE_DATE = re.compile(r'\b\w+ \d+, \d{4}\b', re.I)
 REX_CHANGE_YEAR = re.compile(r'\b\d{4}\b', re.I)
 
-def run(opts):
+
+def extract_walkers():
     members = {}
-    walkers = {
-        'known': [],
-        'new': [],
-    }
+    walkers = []
     for row in csv.reader(open('cache/bioguide3.csv')):
         mid, bio = [x.decode('utf-8') for x in row]
         name = ','.join(bio.split(',', 2)[:2])
 
-        match = REX_CHANGE.search(bio)
-        if match:
+        changes = []
+        for match in REX_CHANGE.finditer(bio):
             snippet = match.group(0)
             try:
                 change_date = REX_CHANGE_DATE.search(snippet).group(0)
@@ -47,23 +45,30 @@ def run(opts):
                     change_date = REX_CHANGE_YEAR.search(snippet).group(0)
                 except AttributeError:
                     change_date = None
-            item = (mid, name, change_date, snippet)
-            if mid in KNOWN_PERSONS:
-                walkers['known'].append(item)
-            else:
-                walkers['new'].append(item)
+            changes.append((change_date, snippet))
+        if len(changes):
+            walkers.append((mid, name, changes))
+
+    return walkers
+
+
+
+def run(opts):
+    walkers = extract_walkers()
 
     print '============='
     print 'Known walkers'
     print '============='
-    for mid, name, date, snippet in walkers['known']:
-        date_rep = date if date is not None else 'NA'
-        print u'[%s] %s (%s) -- %s' % (mid, name, date_rep, snippet)
+    for mid, name, changes in [x for x in walkers if x[0] in KNOWN_PERSONS]:
+        for date, snippet in changes:
+            date_rep = date if date is not None else 'NA'
+            print u'[%s] %s (%s) -- %s' % (mid, name, date_rep, snippet)
 
 
     print
     print '=============='
     print 'Unnown walkers'
     print '=============='
-    for mid, name, date, snippet in walkers['known']:
-        print u'[%s] %s (%s) -- %s' % (mid, name, date, snippet)
+    for mid, name, changes in [x for x in walkers if not x[0] in KNOWN_PERSONS]:
+        for date, snippet in changes:
+            print u'[%s] %s (%s) -- %s' % (mid, name, date, snippet)
